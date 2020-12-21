@@ -1,0 +1,50 @@
+use db_lunch;
+create or replace view Dish_Times as 
+	select Dish_ID
+		  ,count(Dish_ID) as Times_Offered
+	from daily_dishes 
+	group by Dish_ID
+;
+
+create or replace view Lanchoba_Report as
+	select cast(t1.created_at as Date) as Creation_Date
+		  ,cast(t1.updated_at as Date) as Update_Date
+          ,t6.dish_id 
+		  ,t7.name as Dish_Name
+          ,t4.rating 
+ 		  ,t1.user_id	
+          ,t1.order_status
+--        ,t1.transaction_id
+          ,t1.processed_price
+          ,t5.price
+          ,t7.price as New_Price
+          ,t1.payment_status
+          ,t1.payment_type
+		  ,t1.subsidy
+          ,t1.coupon_id
+          ,format(t1.budget, 0) as Budget
+          ,t1.balance
+          ,t1.paid_by_company
+--           ,t1.mega_order_id
+          ,t2.company_id
+          ,t3.first_name
+          ,t3.last_name
+          ,t3.phone
+          ,t2.email
+--           ,t5.daily_dish_id
+		  ,substr(t2.email, (position('@' in t2.email)+1), 100) as Company_Mail
+          ,t8.Times_Offered
+          ,case when (if(substr(t9.name, (position(" " in t9.name)+1), 1) in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'), 1, 0)) = 1
+			    then left(t9.name, position(" " in t9.name)-1)
+                else t9.name
+                end as Comp_Name
+    from db_lunch.orders t1
+    left join db_lunch.users t2 on t1.user_id = t2.id
+    left join db_lunch.personal_users t3 on t1.user_id = t3.user_id 
+    left join db_lunch.feedbacks t4 on t1.id = t4.order_id
+    left join db_lunch.order_dishes t5 on t1.id = t5.order_id 
+    left join db_lunch.daily_dishes t6 on t5.daily_dish_id = t6.id
+    left join db_lunch.dishes t7 on t6.dish_id = t7.id
+    left join db_lunch.Dish_Times t8 on t6.dish_id = t8.Dish_ID
+    left join db_lunch.businesses t9 on t2.company_id = t9.user_id
+    ;
