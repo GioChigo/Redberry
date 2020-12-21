@@ -1,0 +1,250 @@
+use carfest;
+create or replace view carfest_report as 
+select cast(purchase_date as date) as Purchase_Date
+	  ,cast(sold_date as date) as Sold_Date
+	  ,vin_code as VIN
+	  ,upper(substr(substring_index(slug, "-", 2), 6, 100)) as MAKER
+      ,upper(replace(substring_index(substr(slug, 6, 100), "-", 2), "-", "_")) as MODEL
+      ,car_model_id as CAR_MODEL_ID
+	  ,year as YEAR_MODEL
+      ,case when mileage_measurement_unit = "miles" 
+			then round(mileage * 1.60934)
+            else mileage 
+            end as MileageInKm
+	  ,engine_volume 
+      ,transmission
+      ,is_damaged
+      ,fuel_consumption
+      ,drive_line_type
+      ,is_renovated
+      ,tech_inspected
+      ,guaranteed
+      ,is_checked
+      ,is_published
+	  ,visible_on_landing
+      ,is_sold
+      ,(if(additional_car_Fees is null, 0, additional_Car_Fees) + if(transportation_price is null, 0, transportation_price) + if(Customs_Price is null, 0, Customs_Price) + Purchase_Price) as Car_Price
+      ,invoice_price
+      ,Purchase_Price
+      ,(if(additional_car_Fees is null, 0, additional_Car_Fees) + if(transportation_price is null, 0, transportation_price) + if(Customs_Price is null, 0, Customs_Price)) as Overhead_Cost
+      ,selling_price
+      ,(if(sold_date is null, (if(month(cast(updated_at as date)) > month(cast(purchase_date as date)), (cast(updated_at as date) - cast(purchase_date as date) - 100 + 30), (cast(updated_at as date) - cast(purchase_date as date)))), if(month(cast(sold_Date as Date)) > month(cast(purchase_date as Date)), (cast(sold_Date as Date) - cast(purchase_date as Date) - 100 + 30), (cast(sold_Date as Date) - cast(purchase_date as Date))))) as Stock_Days
+	  ,cast(created_at as date) as Creation_Date
+      ,cast(updated_at as date) as Update_Date
+      ,substring_index(substr(color, (instr(color, ":") + 3), 100), '"', 1) as Color
+from carfest.cars
+where Is_Published = 1
+and purchase_date is not null
+order by purchase_date, sold_date, MODEL
+;
+
+-- -------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-- PURCHASED CARS AUTO GENERATED REPORT 
+create or replace view purchased_cars_Rep as 
+select distinct cast(purchase_Date as Date) as Purchase_Date
+	  ,count(purchase_date) as Purchased_Quantity
+      ,sum((if(additional_car_Fees is null, 0, additional_Car_Fees) + if(transportation_price is null, 0, transportation_price) + if(Customs_Price is null, 0, Customs_Price) + Purchase_Price)) as Purchased_Cars_Price
+      ,sum((if(additional_car_Fees is null, 0, additional_Car_Fees) + if(transportation_price is null, 0, transportation_price) + if(Customs_price is null, 0, Customs_Price))) as Purchased_Overhead_Costs
+      ,sum(Purchase_Price) as Purchased_Purchase_Price
+from carfest.cars
+where cast(purchase_Date as Date) is not null
+and is_published = 1
+group by purchase_date
+;
+
+-- SOLD CARS AUTO GENERATED REPORT
+create or replace view Sold_Cars_Rep as 
+select distinct cast(Sold_Date as Date) as Sold_Date
+	  ,count(Sold_Date) as Sold_Quantity
+      ,sum((if(additional_car_Fees is null, 0, additional_Car_Fees) + if(transportation_price is null, 0, transportation_price) + if(Customs_Price is null, 0, Customs_Price) + Purchase_Price)) as Sold_Cars_Price
+      ,sum(selling_price) as Sold_Price
+      ,sum((if(additional_car_Fees is null, 0, additional_Car_Fees) + if(transportation_price is null, 0, transportation_price) + if(Customs_price is null, 0, Customs_Price))) as Sold_Overhead_Cost
+      ,sum(Purchase_Price) as Sold_Purchase_Price
+from carfest.cars
+where cast(purchase_Date as Date) is not null 
+and is_sold = 1
+and is_published = 1
+group by Sold_Date
+;
+
+
+-- JOINING TWO TABLES - PURCHASES AND SOLDS
+create or replace view CarsDate as 
+select distinct cast(purchase_Date as Date) as CarsDate
+from carfest.cars
+where cast(purchase_Date as Date) is not null
+and is_published = 1
+union 
+select distinct cast(Sold_Date as Date) as CarsDate
+from carfest.cars
+where cast(purchase_Date as Date) is not null 
+and is_sold = 1
+and is_published = 1
+order by CarsDate
+;
+
+
+
+-- FULL JOIN FOR RESULT DATABASE 
+create or replace view CarsDate_View as 
+select t1.CarsDate 	
+	  ,case when t2.Purchased_Quantity is not null then t2.Purchased_Quantity else 0 end as Purchase_Quantity
+      ,case when t2.Purchased_Cars_Price is not null then t2.Purchased_Cars_Price else 0 end as Purchased_COGS
+      ,case when t2.Purchased_Purchase_Price is not null then t2.Purchased_Purchase_Price else 0 end as Purchased_Purchase_Price
+      ,case when t2.Purchased_Overhead_Costs is not null then t2.Purchased_Overhead_Costs else 0 end as Purchased_Overhead_Cost
+      ,case when t3.Sold_Quantity is not null then t3.Sold_Quantity else 0 end as Sold_Quantity
+      ,case when t3.Sold_Cars_Price is not null then t3.Sold_Cars_Price else 0 end as Sold_COGS
+      ,case when t3.Sold_Price is not null then t3.Sold_Price else 0 end as Sold_Price
+      ,case when t3.Sold_Purchase_Price is not null then t3.Sold_Purchase_Price else 0 end as Sold_Purchase_Price
+      ,case when t3.Sold_Overhead_Cost is not null then t3.Sold_Overhead_Cost else 0 end as Sold_Overhead_Cost
+from CarsDate t1
+left join purchased_cars_Rep t2 on t1.CarsDate = t2.Purchase_Date
+left join Sold_Cars_Rep t3 on t1.CarsDate = t3.Sold_Date
+;
+
+
+
+
+-- MAKING DATABASE OF DATES AND OTHER INFO
+create or replace view CarsDate_View_Rep as 
+	select CarsDate
+		  ,Purchase_Quantity
+          ,Purchased_COGS
+          ,Purchased_Purchase_Price
+          ,Purchased_Overhead_Cost
+          ,Sold_Quantity
+          ,Sold_COGS
+          ,Sold_Price
+          ,Sold_Purchase_Price
+          ,Sold_Overhead_Cost
+	from CarsDate_View 
+;
+ 
+
+ 
+-- CREATING VIEW OF EVERY DATE BEFORE START OF CARFEST TO CURDATE FOR JOINING OTHER INFO
+create or replace view EveryDayCars as
+select * from 
+(select adddate('1970-01-01',t4*10000 + t3*1000 + t2*100 + t1*10 + t0) Date_Cars from
+ (select 0 t0 union select 1 union select 2 union select 3 union select 4 union select 5 union select 6 union select 7 union select 8 union select 9) t0,
+ (select 0 t1 union select 1 union select 2 union select 3 union select 4 union select 5 union select 6 union select 7 union select 8 union select 9) t1,
+ (select 0 t2 union select 1 union select 2 union select 3 union select 4 union select 5 union select 6 union select 7 union select 8 union select 9) t2,
+ (select 0 t3 union select 1 union select 2 union select 3 union select 4 union select 5 union select 6 union select 7 union select 8 union select 9) t3,
+ (select 0 t4 union select 1 union select 2 union select 3 union select 4 union select 5 union select 6 union select 7 union select 8 union select 9) t4) v
+where Date_Cars between '2020-09-01' and curdate()
+order by Date_Cars;
+
+
+
+-- CREATING VIEW OF LAST DATES AND OTHER INFO | THIS IS THE LAST TABLE VIEW 
+create or replace view Carfest_Dates_View as
+	select t1.Date_Cars 
+		  ,case when (sum(t2.Purchase_Quantity) over (order by t1.Date_Cars)) is not null 
+				then (sum(t2.Purchase_Quantity) over (order by t1.Date_Cars)) 
+                else 0 
+                end as Stock_Period_Start
+		  ,case when ((sum(t2.Purchase_Quantity) over (order by t1.Date_Cars)) - Purchase_Quantity) is not null 
+				then ((sum(t2.Purchase_Quantity) over (order by t1.Date_Cars)) - Purchase_Quantity)
+                else 0 
+                end as Stock_Start
+		  ,case when t2.Purchase_Quantity is not null 
+				then t2.Purchase_Quantity 
+                else 0 
+                end as Purchase_Quantity
+          ,case when t2.Sold_Quantity is not null 
+				then t2.Sold_Quantity 
+				else 0 
+				end as Sold_Quantity
+          ,case when ((sum(t2.Purchase_Quantity) over (order by t1.Date_Cars)) - (sum(t2.Sold_Quantity) over (order by t1.Date_Cars))) is not null 
+				then ((sum(t2.Purchase_Quantity) over (order by t1.Date_Cars)) - (sum(t2.Sold_Quantity) over (order by t1.Date_Cars))) 
+                else 0 
+                end as Stock_Period_End
+          ,case when (sum(t2.Sold_Quantity) over (order by t1.Date_Cars)) is not null 
+				then (sum(t2.Sold_Quantity) over (order by t1.Date_Cars)) 
+				else 0 
+                end as Stock_Period_Sold
+          ,case when t2.Sold_COGS is not null 
+				then t2.Sold_COGS 
+                else 0 
+                end as Sold_COGS
+		  ,case when t2.Sold_Purchase_Price is not null
+				then t2.Sold_Purchase_Price
+                else 0 
+                end as Sold_Purchase_Price
+		  ,case when t2.Sold_Overhead_Cost is not null
+				then t2.Sold_Overhead_Cost
+                else 0 
+                end as Sold_Overhead_Cost
+		  ,case when t2.Purchased_Purchase_Price is not null
+				then t2.Purchased_Purchase_Price
+                else 0 
+                end as Purchased_Purchase_Price
+		  ,case when t2.Purchased_Overhead_Cost is not null
+				then t2.Purchased_Overhead_Cost
+                else 0 
+                end as Purchased_Overhead_Cost
+          ,case when t2.Purchased_COGS is not null 
+				then t2.Purchased_COGS 
+                else 0 
+                end as Purchased_COGS
+		  ,case when (sum(t2.Purchased_COGS) over (order by t1.Date_Cars)) is not null 
+				then (sum(t2.Purchased_COGS) over (order by t1.Date_Cars)) 
+                else 0 
+                end as Stock_Period_Start_COGS
+		  ,case when ((sum(t2.Purchased_COGS) over (order by t1.Date_Cars)) - (sum(t2.Sold_COGS) over (order by t1.Date_Cars))) is not null 
+				then ((sum(t2.Purchased_COGS) over (order by t1.Date_Cars)) - (sum(t2.Sold_COGS) over (order by t1.Date_Cars))) 
+                else 0 
+                end as Stock_Period_End_COGS
+          ,case when t2.Sold_Price is not null 
+				then t2.Sold_Price 
+				else 0 
+                end as Sold_Price
+          ,count(date(date_cars)) over (order by t1.Date_Cars) as Days
+	from EveryDayCars t1
+    left join CarsDate_View_Rep t2 on t1.Date_Cars = t2.CarsDate
+;
+
+
+
+create or replace view LastViewOfCars as
+	select Date_Cars
+		  ,case when Purchase_Quantity = 0 and Sold_Quantity = 0
+				then (Stock_Period_End + Sold_Quantity)
+                when Purchase_Quantity = 0 and Sold_Quantity <> 0
+                then (Stock_Period_End + Sold_Quantity)
+                when Purchase_Quantity <> 0 and Sold_Quantity = 0
+                then (Stock_Period_End - Purchase_Quantity)
+                when Purchase_Quantity <> 0 and Sold_Quantity <> 0
+                then (Stock_Period_End - Purchase_Quantity + Sold_Quantity)
+                else Stock_Start 
+                end as Stock_Starting_Period
+		  ,Purchase_Quantity
+          ,Sold_Quantity
+          ,Stock_Period_End as Stock_Ending_Period
+          ,case when Purchased_COGS = 0 and Sold_COGS = 0
+				then (Stock_Period_End_COGS + sold_COGS)
+                when Purchased_COGS = 0 and Sold_COGS <> 0
+                then (Stock_Period_End_COGS + sold_COGS)
+                when Purchased_COGS <> 0 and Sold_COGS = 0
+                then (Stock_Period_End_COGS - Purchased_COGS)
+                when Purchased_COGS <> 0 and Sold_COGS <> 0
+                then (Stock_Period_End_COGS - Purchased_COGS + Sold_COGS)
+                else Stock_Period_Start_COGS
+                end as Stock_COGS_Starting_Period
+          ,Purchased_COGS
+          ,Sold_COGS
+          ,Purchased_Purchase_Price
+		  ,Purchased_Overhead_Cost
+		  ,Sold_Purchase_Price
+		  ,Sold_Overhead_Cost
+          ,Stock_Period_End_COGS as Stock_COGS_Ending_Period
+          ,sold_Price as Selling_Price 
+          ,sum(Sold_Price) over (order by Date_Cars) as Selling_Price_Running_Sum
+          ,Days
+	from Carfest_Dates_View
+    ;
+    
+    
+    
+    
