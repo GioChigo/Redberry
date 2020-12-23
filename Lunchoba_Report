@@ -48,3 +48,46 @@ create or replace view Lanchoba_Report as
     left join db_lunch.Dish_Times t8 on t6.dish_id = t8.Dish_ID
     left join db_lunch.businesses t9 on t2.company_id = t9.user_id
     ;
+    
+    
+    create or replace view Lunchoba_Users as
+		select t1.email as Mail
+			  ,t1.Phone as Phone
+              ,case when t3.email is not null 
+					then 'Active'
+                    else 'Not Active' 
+                    end as Active_User
+              ,case when t2.active is not null 
+					then 'Active'
+                    else 'Not Active' 
+                    end as Active_Company
+              ,case when (if(substr(t2.name, (position(" " in t2.name)+1), 1) in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'), 1, 0)) = 1
+					then left(t2.name, position(" " in t2.name)-1)
+                    when t2.name is null 
+					then 'Not Available'
+					else t2.name
+					end as Company_Name 
+			  ,t4.Creation_Date
+              ,t4.Price
+		from business_employees t1 
+        left join users t3 on t1.email = t3.email
+        left join businesses t2 on t3.company_id = t2.user_id 
+        left join Lanchoba_Report t4 on t1.email = t4.email
+        ;
+              
+    
+	create or replace view Lunchoba_Users_Report as
+		select distinct Mail
+			  ,Phone
+              ,Active_User
+              ,Active_Company
+              ,Company_Name
+              ,Max(Creation_Date) as Last_Meal
+              ,count(Price) as Orders_Number
+              ,sum(Price) as Orders_Sum
+		from Lunchoba_Users
+        group by Mail, Phone, Active_User, Active_Company, Company_Name
+        order by Company_Name
+        ;
+    
+    
