@@ -50,16 +50,27 @@ create or replace view Lanchoba_Report as
     ;
     
     
-    create or replace view Lunchoba_Users as
-		select t1.email as Mail
-			  ,t1.Phone as Phone
-              ,case when t3.email is not null 
-					then 'Active'
-                    else 'Not Active' 
-                    end as Active_User
-              ,case when t2.active is not null 
-					then 'Active'
-                    else 'Not Active' 
+        
+	create or replace view Lunchoba_Users_1	as 
+        select t1.email as Mail
+			  ,case when length(replace(trim(Phone), " ", "")) = 9
+						and left(replace(trim(Phone), " ", ""), 1) = 5
+					then replace(trim(Phone), " ", "") 
+                    else 0 
+                    end as Phone 
+              ,t1.Business_ID as company_id
+              ,case when t3.email is null
+					then 'Not Active'
+                    else 'Active'
+                    end as Acitve_User
+		from business_employees t1 
+        left join users t3 on t1.email = t3.email;
+        
+	create or replace view Lunchoba_Users_2 as
+		select t1.*
+			  ,case when t2.active = 1 
+					then 'Active' 
+					else 'Not Active' 
                     end as Active_Company
               ,case when (if(substr(t2.name, (position(" " in t2.name)+1), 1) in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'), 1, 0)) = 1
 					then left(t2.name, position(" " in t2.name)-1)
@@ -67,26 +78,24 @@ create or replace view Lanchoba_Report as
 					then 'Not Available'
 					else t2.name
 					end as Company_Name 
-			  ,t4.Creation_Date
-              ,t4.Price
-		from business_employees t1 
-        left join users t3 on t1.email = t3.email
-        left join businesses t2 on t3.company_id = t2.user_id 
-        left join Lanchoba_Report t4 on t1.email = t4.email
+			  ,t3.Creation_Date
+              ,t3.Price
+		from Lunchoba_Users_1 t1
+        left join businesses t2 on t1.company_id = t2.id 
+        left join Lanchoba_Report t3 on t1.Mail = t3.email
         ;
-              
     
 	create or replace view Lunchoba_Users_Report as
 		select distinct Mail
 			  ,Phone
-              ,Active_User
+              ,Acitve_User
               ,Active_Company
               ,Company_Name
               ,Max(Creation_Date) as Last_Meal
               ,count(Price) as Orders_Number
               ,sum(Price) as Orders_Sum
-		from Lunchoba_Users
-        group by Mail, Phone, Active_User, Active_Company, Company_Name
+		from Lunchoba_Users_2
+        group by Mail, Company_Name
         order by Company_Name
         ;
     
