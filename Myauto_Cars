@@ -1,0 +1,9 @@
+create view myauto_carlist as
+	select t1.car_id
+          ,t1.price_usd
+          ,t2.name as Manufacturer
+          ,t3.name as Model
+    from myauto.cars t1
+    left join myauto.manufacturers t2 on t1.man_id = t2.manufacturer
+    left join myauto.models t3 on t1.manufacturer = t3.model_id
+    ;
