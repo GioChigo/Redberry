@@ -1,0 +1,44 @@
+create or replace table `direct-variety-295415.CarfestCRM.Carfest_Purchase_Report` as
+select F
+      ,Buyer
+      ,Name
+      ,Surname
+      ,case when Channel = "Myauto" 
+            then 1
+            else 0 
+            end as Myauto
+      ,case when Channel = "AMO"
+            then 1 
+            else 0 
+            end as AMO
+      ,case when Channel = "შემოსული ზარი"
+            then 1
+            else 0
+            end as Incoming_Call
+      ,Manufacturer
+      ,Model
+      ,Year
+      ,Mileage
+      ,Price
+      ,Phone
+      ,case when ComesOrNot = "მოდის"
+            then 1 
+            else 0 
+            end as Comes
+      ,case when CameOrNot = "მოვიდა"
+            then 1
+            else 0
+            end as Came
+      ,case when BoughtOrNot = "ვიყიდეთ"
+            then 1
+            else 0
+            end as Bought
+      ,LastPriceClients
+      ,OurPrice
+      ,OurMaxPrice
+      ,Comment
+from `direct-variety-295415.CarfestCRM.Home_Version`
+order by F Desc;
+
+
+
