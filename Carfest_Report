@@ -4,7 +4,7 @@ select cast(purchase_date as date) as Purchase_Date
 	  ,cast(sold_date as date) as Sold_Date
 	  ,vin_code as VIN
 	  ,upper(substr(substring_index(slug, "-", 2), 6, 100)) as MAKER
-      ,upper(replace(substring_index(substr(slug, 6, 100), "-", 2), "-", "_")) as MODEL
+      ,substr((upper(replace(substring_index(substr(slug, 6, 100), "-", 2), "-", "_"))), (position("_" IN (upper(replace(substring_index(substr(slug, 6, 100), "-", 2), "-", "_"))))+1), 100) as MODEL
       ,car_model_id as CAR_MODEL_ID
 	  ,year as YEAR_MODEL
       ,case when mileage_measurement_unit = "miles" 
@@ -28,15 +28,36 @@ select cast(purchase_date as date) as Purchase_Date
       ,Purchase_Price
       ,(if(additional_car_Fees is null, 0, additional_Car_Fees) + if(transportation_price is null, 0, transportation_price) + if(Customs_Price is null, 0, Customs_Price)) as Overhead_Cost
       ,selling_price
-      ,(if(sold_date is null, (if(month(cast(updated_at as date)) > month(cast(purchase_date as date)), (cast(updated_at as date) - cast(purchase_date as date) - 100 + 30), (cast(updated_at as date) - cast(purchase_date as date)))), if(month(cast(sold_Date as Date)) > month(cast(purchase_date as Date)), (cast(sold_Date as Date) - cast(purchase_date as Date) - 100 + 30), (cast(sold_Date as Date) - cast(purchase_date as Date))))) as Stock_Days
+      ,case when (if(sold_date is null, (if(month(cast(updated_at as date)) > month(cast(purchase_date as date)), (cast(updated_at as date) - cast(purchase_date as date) - 100 + 30), (cast(updated_at as date) - cast(purchase_date as date)))), if(month(cast(sold_Date as Date)) > month(cast(purchase_date as Date)), (cast(sold_Date as Date) - cast(purchase_date as Date) - 100 + 30), (cast(sold_Date as Date) - cast(purchase_date as Date))))) > 1000 
+			then (cast(updated_at as date) - cast(purchase_date as date) - 10000 + 1000 + 100 + 30) 
+            else (if(sold_date is null, (if(month(cast(updated_at as date)) > month(cast(purchase_date as date)), (cast(updated_at as date) - cast(purchase_date as date) - 100 + 30), (cast(updated_at as date) - cast(purchase_date as date)))), if(month(cast(sold_Date as Date)) > month(cast(purchase_date as Date)), (cast(sold_Date as Date) - cast(purchase_date as Date) - 100 + 30), (cast(sold_Date as Date) - cast(purchase_date as Date)))))
+            end as Stock_Days
 	  ,cast(created_at as date) as Creation_Date
       ,cast(updated_at as date) as Update_Date
       ,substring_index(substr(color, (instr(color, ":") + 3), 100), '"', 1) as Color
+      ,case when mileage between 0 and 10000 
+				then "-10"
+				when mileage between 10001 and 50000
+                then "10-50"
+                when mileage between 50001 and 100000
+                then "50-100"
+                when mileage between 100001 and 150000
+                then "100-150"
+                when mileage between 150001 and 200000
+                then "150-200" 
+                when mileage between 200001 and 250000
+                then "200-250"
+                when mileage between 250001 and 300000
+                then "250-300"
+                else "300+"
+                end as Mileage
 from carfest.cars
 where Is_Published = 1
 and purchase_date is not null
+and has_arrived = 1
 order by purchase_date, sold_date, MODEL
 ;
+
 
 -- -------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -50,6 +71,7 @@ select distinct cast(purchase_Date as Date) as Purchase_Date
 from carfest.cars
 where cast(purchase_Date as Date) is not null
 and is_published = 1
+and has_arrived = 1
 group by purchase_date
 ;
 
@@ -65,6 +87,7 @@ from carfest.cars
 where cast(purchase_Date as Date) is not null 
 and is_sold = 1
 and is_published = 1
+and has_arrived = 1
 group by Sold_Date
 ;
 
@@ -81,6 +104,7 @@ from carfest.cars
 where cast(purchase_Date as Date) is not null 
 and is_sold = 1
 and is_published = 1
+and has_arrived = 1
 order by CarsDate
 ;
 
@@ -208,7 +232,7 @@ create or replace view Carfest_Dates_View as
 
 
 create or replace view LastViewOfCars as
-	select Date_Cars
+	select cast(Date_Cars as date) as Date_Cars
 		  ,case when Purchase_Quantity = 0 and Sold_Quantity = 0
 				then (Stock_Period_End + Sold_Quantity)
                 when Purchase_Quantity = 0 and Sold_Quantity <> 0
@@ -247,4 +271,97 @@ create or replace view LastViewOfCars as
     
     
     
+--------------------------------------------------------------------------------------------------------------
+
+create or replace view carfest_report_Local_Import as 
+select cast(purchase_date as date) as Purchase_Date
+	  ,cast(sold_date as date) as Sold_Date
+	  ,vin_code as VIN
+	  ,upper(substr(substring_index(slug, "-", 2), 6, 100)) as MAKER
+      ,upper(replace(substring_index(substr(slug, 6, 100), "-", 2), "-", "_")) as MODEL
+      ,car_model_id as CAR_MODEL_ID
+	  ,year as YEAR_MODEL
+      ,case when mileage_measurement_unit = "miles" 
+			then round(mileage * 1.60934)
+            else mileage 
+            end as MileageInKm
+	  ,engine_volume 
+      ,transmission
+      ,is_damaged
+      ,fuel_consumption
+      ,drive_line_type
+      ,is_renovated
+      ,tech_inspected
+      ,guaranteed
+      ,is_checked
+      ,is_published
+	  ,visible_on_landing
+      ,is_sold
+      ,(if(additional_car_Fees is null, 0, additional_Car_Fees) + if(transportation_price is null, 0, transportation_price) + if(Customs_Price is null, 0, Customs_Price) + Purchase_Price) as Car_Price #Additional Car Fees Vnaxo#
+      ,invoice_price
+      ,Purchase_Price
+      ,(if(additional_car_Fees is null, 0, additional_Car_Fees) + if(transportation_price is null, 0, transportation_price) + if(Customs_Price is null, 0, Customs_Price)) as Overhead_Cost
+      ,selling_price
+      ,case when (if(sold_date is null, (if(month(cast(updated_at as date)) > month(cast(purchase_date as date)), (cast(updated_at as date) - cast(purchase_date as date) - 100 + 30), (cast(updated_at as date) - cast(purchase_date as date)))), if(month(cast(sold_Date as Date)) > month(cast(purchase_date as Date)), (cast(sold_Date as Date) - cast(purchase_date as Date) - 100 + 30), (cast(sold_Date as Date) - cast(purchase_date as Date))))) > 1000 
+			then (cast(updated_at as date) - cast(purchase_date as date) - 10000 + 1000 + 100 + 30) 
+            else (if(sold_date is null, (if(month(cast(updated_at as date)) > month(cast(purchase_date as date)), (cast(updated_at as date) - cast(purchase_date as date) - 100 + 30), (cast(updated_at as date) - cast(purchase_date as date)))), if(month(cast(sold_Date as Date)) > month(cast(purchase_date as Date)), (cast(sold_Date as Date) - cast(purchase_date as Date) - 100 + 30), (cast(sold_Date as Date) - cast(purchase_date as Date)))))
+            end as Stock_Days
+	  ,cast(created_at as date) as Creation_Date
+      ,cast(updated_at as date) as Update_Date
+      ,substring_index(substr(color, (instr(color, ":") + 3), 100), '"', 1) as Color
+      ,case when has_arrived = 1 
+		   then 'Local' 
+           else 'Import'
+           end as LocalorImport
+	  ,purchase_option
+from carfest.cars
+where Is_Published = 1
+and purchase_date is not null
+order by purchase_date, sold_date, MODEL
+;
     
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------    
+    
+    
+-- Active Cars Statistics 
+    
+create or replace view carfest.Stock_Cars_Real_Price as 
+select Maker
+	  ,substr(Model, (position("_" in Model)+1), 100) as MODEL
+      ,Year_Model
+      ,case when MileageInKm between 0 and 10000 
+				then "-10"
+				when MileageInKm between 10001 and 50000
+                then "10-50"
+                when MileageInKm between 50001 and 100000
+                then "50-100"
+                when MileageInKm between 100001 and 150000
+                then "100-150"
+                when MileageInKm between 150001 and 200000
+                then "150-200" 
+                when MileageInKm between 200001 and 250000
+                then "200-250"
+                when MileageInKm between 250001 and 300000
+                then "250-300"
+                else "300+"
+                end as Mileage
+	  ,case when transmission = "tiptronic" 
+			then "ტიპტრონიკი"
+            when transmission = "automatic" 
+            then "ავტომატიკა"
+            else "მექანიკა"
+            end as Transmission
+      ,color
+      ,invoice_price
+      ,Purchase_Price
+      ,stock_days
+from carfest.carfest_report
+where is_sold = 0
+;
+
+
+
+    
+
