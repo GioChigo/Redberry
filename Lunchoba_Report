@@ -34,6 +34,24 @@ create or replace view Lanchoba_Report as
 --           ,t5.daily_dish_id
 		  ,substr(t2.email, (position('@' in t2.email)+1), 100) as Company_Mail
           ,t8.Times_Offered
+          ,t10.max_date
+          ,case when t6.category_id = 1 
+				then "მარტივი"
+                when t6.category_id = 2
+                then "მსუყე"
+                when t6.category_id = 3
+                then "ვეგანური"
+                when t6.category_id = 4
+                then "განსაკუთრებული"
+                when t6.category_id = 5
+                then "კვირის ლანჩი 1"
+                when t6.category_id = 6
+                then "კვირის ლანჩი 2"
+                when t6.category_id = 7
+                then "დიეტური"
+                when t6.category_id = 8
+                then "სეზონური"
+                end as Category_Dish_Daily
           ,case when (if(substr(t9.name, (position(" " in t9.name)+1), 1) in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'), 1, 0)) = 1
 			    then left(t9.name, position(" " in t9.name)-1)
                 else t9.name
@@ -47,7 +65,11 @@ create or replace view Lanchoba_Report as
     left join db_lunch.dishes t7 on t6.dish_id = t7.id
     left join db_lunch.Dish_Times t8 on t6.dish_id = t8.Dish_ID
     left join db_lunch.businesses t9 on t2.company_id = t9.user_id
+    left join (select dish_id, max(date) as max_date from db_lunch.daily_dishes group by dish_id) t10 on t6.dish_id = t10.dish_id
     ;
+    
+    
+
     
     
         
@@ -99,4 +121,5 @@ create or replace view Lanchoba_Report as
         order by Company_Name
         ;
     
+
     
