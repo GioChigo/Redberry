@@ -1,9 +1,137 @@
-create view myauto_carlist as
-	select t1.car_id
-          ,t1.price_usd
+use myauto;
+
+create or replace view myauto.cars_Filtered as 
+	select * 
+    from myauto.cars 
+    where year(cast(updated_at as Date)) > 2020
+;
+
+create or replace view myauto_carlist as
+	select t1.car_id as Car_id
+          ,t1.price_usd as Price_USD
           ,t2.name as Manufacturer
-          ,t3.name as Model
-    from myauto.cars t1
+          ,UPPER(t3.name) as Model
+          ,t1.model as SubModel
+          ,t1.year
+          ,case when t4.name = 'ფოთის გეზ-ი' then 'ფოთი' 
+				when t4.name = 'რუსთავის ავტობაზრობა' then 'რუსთავი' 
+                when t4.name = 'ბათუმის გეზ-ი' then 'ბათუმი'
+                when t4.name = 'MyAuto-ს ავტობაზრობა' then 'რუსთავი' 
+                else t4.name 
+                end as Location
+          ,t5.name as Category
+          ,t6.name as Fuel_Type 
+          ,t7.name as Color
+          ,t9.name as Saloon_Color
+          ,t8.name as Gear_Type
+          ,t10.wheel 
+          ,t10.door
+          ,t10.drive_Type
+          ,t10.tech_inspection
+          ,case when t10.mileage between 0 and 10000 
+				then "-10"
+				when t10.mileage between 10001 and 50000
+                then "10-50"
+                when t10.mileage between 50001 and 100000
+                then "50-100"
+                when t10.mileage between 100001 and 150000
+                then "100-150"
+                when t10.mileage between 150001 and 200000
+                then "150-200" 
+                when t10.mileage between 200001 and 250000
+                then "200-250"
+                when t10.mileage between 250001 and 300000
+                then "250-300"
+                else "300+"
+                end as Mileage
+		  ,t10.Mileage as MileageInKm
+          ,t10.engine
+          ,t10.abs as ABS
+          ,t10.conditioner
+		  ,t10.el_windows
+          ,t10.climat_control
+          ,t10.leather
+          ,t10.disks
+          ,t10.navigation_system
+          ,t10.central_lock
+          ,t10.board_computer
+          ,t10.hydraulics
+          ,t10.chair_warming
+          ,t10.parking_control
+          ,t10.back_camera
+		  ,t1.date as Cration_Date
+          ,cast(t1.updated_at as Date) as Update_Date
+          ,t11.client_phone 
+          ,t11.status
+    from myauto.cars_Filtered t1
     left join myauto.manufacturers t2 on t1.man_id = t2.manufacturer
     left join myauto.models t3 on t1.manufacturer = t3.model_id
+    left join myauto.locations t4 on t1.location_id = t4.location_id
+    left join myauto.category t5 on t1.category_id = t5.category_id
+    left join myauto.fuel_type t6 on t1.fuel_type_id = t6.fuel_id
+    left join myauto.colors t7 on t1.color_id = t7.color_id
+    left join myauto.colors t9 on t1.saloon_color_id = t9.color_id
+    left join myauto.gear_types t8 on t1.gear_type_id = t8.gear_type_id
+    left join myauto.CarList t10 on t1.car_id = t10.car_id 
+    left join myauto.search t11 on t1.car_id = t11.car_id
+    where t1.price_usd > 1000
+    and t4.name not in ('გზაში საქ.-სკენ', 'აშშ', 'სამხ. კორეა', 'დუბაი', 'იაპონია', 'სხვა', 'გერმანია', 'რუსეთი', 'ევროპა', 'უკრაინა') 
     ;
+    
+    
+
+create or replace view carlist_myauto_Averages as
+	select Manufacturer
+		  ,year
+          ,model
+          ,avg(Price_USD) as Avg_Price
+          ,length(Price_USD) as LEN_PRICE
+          ,count(Manufacturer) as  Count_Cars
+          ,status
+	from myauto.myauto_carlist
+    group by Manufacturer, Model, Year
+    having status = "SOLD" 
+    order by Manufacturer, Model, Year, Mileage 
+    ;   
+    
+    
+    
+create or replace view carlist_myauto as
+	select t1.*
+          ,(t1.Price_USD-t2.Avg_Price)/t2.Avg_Price*100 as Probability
+          ,t2.LEN_PRICE
+          ,t2.Count_Cars
+	from myauto_carlist t1
+    left join carlist_myauto_Averages t2 on t1.Manufacturer = t2.Manufacturer 
+										and	t1.Model = t2.Model
+                                        and t1.Year = t2.Year
+    order by Manufacturer, Model, Year, Mileage 
+    ;
+    
+    create or replace view calist_myauto_2 as
+		select * 
+        from carlist_myauto 
+        where probability between -50 and 50
+	;
+
+
+-- Active Cars statistics
+
+
+create or replace view myauto.Myauto_Statistics as
+	select Manufacturer
+		  ,UPPER(Model) AS Model
+          ,year
+          ,Location
+          ,Category
+          ,Fuel_type
+          ,color
+          ,Gear_Type
+          ,mileage
+          ,Probability
+          ,avg(Price_USD) as AVG_Price
+          ,count(Manufacturer) as Number_Of_Cars_Filtered
+	from myauto.calist_myauto_2
+    group by Manufacturer, upper(Model), year, Mileage
+    ;
+    
